@@ -1,0 +1,24 @@
+[package]
+name = "cargo-night"
+version = "0.1.0"
+description = "CargoNight Online Board Game Platform"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "cargo_night_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[package.metadata]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["sync"] }
