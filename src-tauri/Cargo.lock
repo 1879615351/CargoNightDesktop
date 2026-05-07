@@ -231,11 +231,13 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "tao",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
  "tokio",
  "uuid",
+ "wry",
 ]
 
 [[package]]

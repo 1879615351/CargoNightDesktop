@@ -22,3 +22,5 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["sync"] }
+tao = "0.35.0"
+wry = "0.55.0"

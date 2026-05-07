@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8080/api";
+import { API_BASE } from "../config";
 
 let authToken: string | null = localStorage.getItem("cargonight_token");
 
@@ -50,7 +50,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch (e) {
     clearTimeout(timeout);
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("连接超时：请确认服务器已启动 (http://localhost:8080)");
+      throw new Error(`连接超时：请确认服务器已启动 (${API_BASE})`);
     }
     if (e instanceof TypeError && e.message === "Failed to fetch") {
       throw new Error("无法连接服务器：请先启动 CargoNightServer");

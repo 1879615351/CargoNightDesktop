@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { getToken } from "../api/client";
-
-const WS_BASE = "ws://localhost:8080/ws";
+import { WS_BASE } from "../config";
 
 export function useWebSocket(roomId: string | undefined, handlers: {
   onChat?: (data: Record<string, unknown>) => void;

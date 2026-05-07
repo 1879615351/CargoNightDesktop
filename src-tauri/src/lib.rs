@@ -7,6 +7,12 @@ use commands::{home::*, games::*, lobby::*, room::*, chat::*};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[cfg(target_os = "android")]
+#[tauri::mobile_entry_point]
+fn android_main() {
+    run()
+}
+
 pub fn run() {
     let app_state = Arc::new(Mutex::new(AppState::new()));
 
