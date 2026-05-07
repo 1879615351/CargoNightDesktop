@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api/client";
 import { useWebSocket } from "../hooks/useWebSocket";
 import MissionHistory from "../components/avalon/MissionHistory";
 import PhaseStepper from "../components/avalon/PhaseStepper";
 import RoleAvatar from "../components/avalon/RoleAvatar";
 import SpeakingPanel from "../components/avalon/SpeakingPanel";
+import MissionResultToast from "../components/avalon/MissionResultToast";
 import type { PlayerGameView, RoleName, Alignment } from "../types/avalon";
 import { ROLE_NAMES } from "../types/avalon";
 
@@ -18,6 +19,9 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
   const [showRoleCard, setShowRoleCard] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showResultToast, setShowResultToast] = useState(false);
+  const [toastData, setToastData] = useState<{ success: boolean; round: number } | null>(null);
+  const lastResultCountRef = useRef(0);
 
   const fetchState = useCallback(async () => {
     try {
@@ -27,6 +31,18 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
   }, [roomId]);
 
   useEffect(() => { fetchState(); }, [fetchState]);
+
+  // Show result toast when a new mission result appears
+  useEffect(() => {
+    if (!game) return;
+    const results = game.mission_results.filter(r => r !== null);
+    if (results.length > lastResultCountRef.current) {
+      const lastResult = results[results.length - 1];
+      setToastData({ success: lastResult, round: game.round });
+      setShowResultToast(true);
+    }
+    lastResultCountRef.current = results.length;
+  }, [game?.mission_results]);
 
   // Auto-mute when not your speaking turn
   useEffect(() => {
@@ -157,16 +173,16 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
       )}
 
       {/* Main Game Area - Three Column Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-3 p-3 sm:p-4 min-h-0 overflow-hidden">
-        {/* Left Column */}
-        <div className="flex flex-col gap-2 overflow-auto lg:w-1/4 min-w-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-2 sm:gap-3 p-2 sm:p-4 min-h-0">
+        {/* Player Rows - horizontal on mobile, vertical columns on desktop */}
+        <div className="flex lg:flex-col justify-evenly gap-1.5 lg:w-1/4 lg:min-h-0 shrink-0">
           {leftPlayers.map((p, idx) => (
             <PlayerCard key={p.user_id} {...{ p, idx, game, userId, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, getPlayerVisibleRole }} />
           ))}
         </div>
 
         {/* Center */}
-        <div className="flex flex-col gap-3 flex-1 min-w-0 overflow-auto lg:max-w-xl">
+        <div className="flex flex-col justify-center flex-1 min-w-0 min-h-0 lg:max-w-xl mx-auto w-full overflow-auto">
           {isSpeaking && (
             <SpeakingPanel
               queue={game.speaking_queue}
@@ -186,8 +202,8 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
           <PhaseActions {...{ game, isLeader, selectedTeam, roundSize, inTeam, submitting, apiCall, onBackToRoom, setShowHistory, roomId }} />
         </div>
 
-        {/* Right Column */}
-        <div className="flex flex-col gap-2 overflow-auto lg:w-1/4 min-w-0">
+        {/* Player Rows - horizontal on mobile, vertical columns on desktop */}
+        <div className="flex lg:flex-col justify-evenly gap-1.5 lg:w-1/4 lg:min-h-0 shrink-0">
           {rightPlayers.map((p, idx) => (
             <PlayerCard key={p.user_id} {...{ p, idx, game, userId, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, getPlayerVisibleRole }} />
           ))}
@@ -195,6 +211,14 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
       </div>
 
       {showHistory && <MissionHistory game={game} players={game.players} onClose={() => setShowHistory(false)} />}
+      {showResultToast && toastData && (
+        <MissionResultToast
+          success={toastData.success}
+          round={toastData.round}
+          lastRound={game.round_history[game.round_history.length - 1] ?? null}
+          onDone={() => { setShowResultToast(false); setToastData(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -218,7 +242,7 @@ function PlayerCard({ p, idx, game, userId, selectedTeam, canSelect, canAssassin
     <button key={p.user_id} disabled={(!canSelect && !canAssassinate) || submitting}
       style={{ animationDelay: `${idx * 50}ms` }}
       onClick={() => { if (canSelect) togglePlayer(p.user_id); if (canAssassinate) apiCall("assassinate", { target: p.user_id }); }}
-      className={`animate-fade-in-up relative p-2.5 sm:p-3 rounded-xl border transition-all duration-300 text-left w-full backdrop-blur-sm ${
+      className={`animate-fade-in-up relative p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all duration-300 text-left w-full backdrop-blur-sm flex-shrink-0 lg:flex-shrink ${
         isSpeaker ? "bg-amber-500/[0.08] border-amber-400/50 shadow-lg shadow-amber-500/10 ring-2 ring-amber-400/30 animate-pulse-glow-gold" :
         onMission ? "bg-blue-500/[0.08] border-blue-500/30 shadow-lg shadow-blue-500/5" :
         picked ? "bg-purple-500/[0.08] border-purple-500/40 shadow-lg shadow-purple-500/10 ring-1 ring-purple-500/30" :
@@ -227,11 +251,11 @@ function PlayerCard({ p, idx, game, userId, selectedTeam, canSelect, canAssassin
         vis.isEvil ? "bg-red-500/[0.06] border-red-400/20 ring-1 ring-red-400/15" :
         "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12]"
       }`}>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-2.5">
         <RoleAvatar
           role={vis.role ?? (p.user_id === userId ? game.your_role : undefined)}
           alignment={vis.align}
-          size={40}
+          size={36}
           isLeader={p.is_leader}
           isOnline={p.is_connected}
           isSelf={p.user_id === userId}
@@ -240,7 +264,7 @@ function PlayerCard({ p, idx, game, userId, selectedTeam, canSelect, canAssassin
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-xs font-semibold text-white truncate">{p.username}</span>
+            <span className="text-[11px] sm:text-xs font-semibold text-white truncate">{p.username}</span>
             {p.is_ai_controlled && <span className="text-[8px] px-1 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium">AI</span>}
             {!p.is_connected && <span className="text-[8px] px-1 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium">离线</span>}
           </div>
@@ -295,7 +319,7 @@ function PhaseActions({ game, isLeader, selectedTeam, roundSize, inTeam, submitt
     <div className="animate-fade-in-up flex flex-col gap-3">
       {/* Proposal Phase */}
       {game.phase === "Proposal" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 sm:p-5 backdrop-blur-sm text-center">
+        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
           {isLeader && game.proposal_ready && !game.speaking_phase ? (
             <>
               <h3 className="text-sm font-semibold text-white/80 mb-2">👑 选择 <span className="text-amber-400">{roundSize}</span> 名队员</h3>
@@ -308,14 +332,14 @@ function PhaseActions({ game, isLeader, selectedTeam, roundSize, inTeam, submitt
               </button>
             </>
           ) : (
-            <p className="text-white/25 text-sm py-2">{game.speaking_phase ? "队长正在发言..." : "等待队长选择队伍"}</p>
+            <p className="text-white/25 text-sm py-1">{game.speaking_phase ? "队长正在发言..." : "等待队长选择队伍"}</p>
           )}
         </div>
       )}
 
       {/* Vote Phase */}
       {game.phase === "Vote" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 sm:p-5 backdrop-blur-sm text-center">
+        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
           <h3 className="text-xs font-semibold text-white/60 mb-2">🗳 投票表决</h3>
           {game.is_your_turn ? (
             <div className="flex gap-3 justify-center">
@@ -325,14 +349,14 @@ function PhaseActions({ game, isLeader, selectedTeam, roundSize, inTeam, submitt
                 className="w-28 h-12 rounded-2xl bg-red-600/80 hover:bg-red-500 disabled:bg-white/[0.05] disabled:text-white/15 text-white text-sm font-bold transition-all duration-300 hover:scale-105 shadow-lg shadow-red-500/20 flex items-center justify-center gap-1"><span>✗</span> 否决</button>
             </div>
           ) : (
-            <p className="text-white/20 text-xs py-2">等待投票...</p>
+            <p className="text-white/20 text-xs py-1">等待投票...</p>
           )}
         </div>
       )}
 
       {/* Mission Phase */}
       {game.phase === "Mission" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 sm:p-5 backdrop-blur-sm text-center">
+        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
           {inTeam ? (
             <>
               <h3 className="text-sm font-semibold text-white/80 mb-3">⚔ 你在任务队伍中</h3>
@@ -344,7 +368,7 @@ function PhaseActions({ game, isLeader, selectedTeam, roundSize, inTeam, submitt
               </div>
             </>
           ) : (
-            <p className="text-white/20 text-xs py-4">任务进行中...</p>
+            <p className="text-white/20 text-xs py-2">任务进行中...</p>
           )}
         </div>
       )}

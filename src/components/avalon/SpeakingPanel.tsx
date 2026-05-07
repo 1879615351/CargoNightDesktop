@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import type { RoleName } from "../../types/avalon";
 import { ROLE_NAMES } from "../../types/avalon";
 
@@ -26,29 +27,57 @@ export default function SpeakingPanel({
   queue, currentSpeaker, remaining, isYourTurn, players, onEndSpeaking,
   allRoles, showRoles, micActive, muted, onToggleMic, onStartMic,
 }: Props) {
-  const mins = Math.floor(Math.max(0, remaining) / 60);
-  const secs = Math.floor(Math.max(0, remaining) % 60);
+  const [displayTime, setDisplayTime] = useState(remaining);
+  const serverTimeRef = useRef(remaining);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sync local timer with server value when it changes significantly or speaker changes
+  useEffect(() => {
+    const diff = Math.abs(remaining - serverTimeRef.current);
+    if (diff > 2 || serverTimeRef.current === 0 || currentSpeaker !== serverSpeakerRef.current) {
+      setDisplayTime(remaining);
+    }
+    serverTimeRef.current = remaining;
+  }, [remaining, currentSpeaker]);
+
+  const serverSpeakerRef = useRef(currentSpeaker);
+
+  // Local countdown tick
+  useEffect(() => {
+    if (currentSpeaker) {
+      tickRef.current = setInterval(() => {
+        setDisplayTime(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    };
+  }, [currentSpeaker]);
+
+  const mins = Math.floor(Math.max(0, displayTime) / 60);
+  const secs = Math.floor(Math.max(0, displayTime) % 60);
   const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
-  const pct = Math.min(100, (remaining / 90) * 100);
-  const urgent = remaining < 15;
+  const totalSecs = 90;
+  const pct = Math.min(100, (displayTime / totalSecs) * 100);
+  const urgent = displayTime < 15;
 
   const getPlayerName = (uid: string) => players.find(p => p.user_id === uid)?.username ?? uid.slice(0, 6);
   const getPlayerAvatar = (uid: string) => players.find(p => p.user_id === uid)?.avatar ?? "🎮";
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 sm:p-5 backdrop-blur-sm animate-fade-in-up">
-      <h3 className="text-sm font-semibold text-white/70 mb-3 flex items-center gap-2">
+    <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-4 backdrop-blur-sm animate-fade-in-up">
+      <h3 className="text-sm font-semibold text-white/70 mb-2 flex items-center gap-2">
         <span>💬</span> 发言阶段
         {currentSpeaker && <span className="text-xs text-white/30 font-normal">— 当前: {getPlayerName(currentSpeaker)}</span>}
       </h3>
 
       {/* Current Speaker Timer */}
       {currentSpeaker && (
-        <div className={`rounded-xl p-4 mb-4 text-center transition-all duration-500 ${
+        <div className={`rounded-xl p-3 mb-3 text-center transition-all duration-500 ${
           isYourTurn ? "bg-blue-500/[0.08] border border-blue-400/20 shadow-lg shadow-blue-500/5" : "bg-white/[0.02]"
         }`}>
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+          <div className="relative w-14 h-14 mx-auto mb-1.5">
+            <svg className="w-14 h-14 -rotate-90" viewBox="0 0 64 64">
               <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
               <circle cx="32" cy="32" r="28" fill="none"
                 stroke={urgent ? "#ef4444" : isYourTurn ? "#3b82f6" : "#6b7280"}
@@ -96,7 +125,7 @@ export default function SpeakingPanel({
           const role = showRoles && allRoles ? allRoles[uid] : undefined;
 
           return (
-            <div key={uid} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
+            <div key={uid} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all ${
               isCurrent ? "bg-blue-500/10 ring-1 ring-blue-400/20" :
               isPast ? "bg-white/[0.02] opacity-50" : "bg-white/[0.02]"
             }`}>

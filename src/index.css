@@ -81,6 +81,14 @@ input[type="range"]::-webkit-slider-thumb {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+@keyframes toast-in {
+  from { opacity: 0; transform: scale(0.7) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(1.1) translateY(-10px); }
+}
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-pulse-glow-purple { animation: pulse-glow-purple 2s ease-in-out infinite; }
 .animate-pulse-glow-red { animation: pulse-glow-red 2s ease-in-out infinite; }
@@ -90,3 +98,5 @@ input[type="range"]::-webkit-slider-thumb {
 .animate-scale-in { animation: scale-in 0.3s ease-out; }
 .animate-slide-up { animation: slide-up 0.35s ease-out; }
 .animate-float { animation: float 3s ease-in-out infinite; }
+.animate-toast-in { animation: toast-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+.animate-toast-out { animation: toast-out 0.4s ease-in forwards; }
