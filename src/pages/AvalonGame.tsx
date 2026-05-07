@@ -32,19 +32,16 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
 
   useEffect(() => { fetchState(); }, [fetchState]);
 
-  // Show result toast when a new mission result appears
   useEffect(() => {
     if (!game) return;
     const results = game.mission_results.filter(r => r !== null);
     if (results.length > lastResultCountRef.current) {
-      const lastResult = results[results.length - 1];
-      setToastData({ success: lastResult, round: game.round });
+      setToastData({ success: results[results.length - 1], round: results.length });
       setShowResultToast(true);
     }
     lastResultCountRef.current = results.length;
   }, [game?.mission_results]);
 
-  // Auto-mute when not your speaking turn
   useEffect(() => {
     if (game?.speaking_phase && !game?.is_your_turn && micActive && !muted) {
       onToggleMic();
@@ -70,8 +67,8 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
   if (loading) return (
     <div className="h-full w-full flex items-center justify-center bg-gradient-to-b from-[#0a0f1a] to-[#1a1040]">
       <div className="flex flex-col items-center gap-4 animate-fade-in-up">
-        <div className="w-10 h-10 rounded-full border-2 border-blue-500/30 border-t-blue-400 animate-spin" />
-        <span className="text-white/30 text-sm">加载游戏中...</span>
+        <div className="w-12 h-12 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+        <span className="text-white/30 text-sm">正在加入游戏...</span>
       </div>
     </div>
   );
@@ -85,130 +82,117 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
   const isSpeaking = game.speaking_phase;
   const isProposalPhase = game.phase === "Proposal";
   const isAssassination = game.phase === "Assassination";
+  const canSelect = isProposalPhase && game.proposal_ready && isLeader && !isSpeaking;
+  const canAssassinate = isAssassination && game.your_role === "Assassin";
 
   const togglePlayer = (pid: string) => {
     setSelectedTeam(prev => prev.includes(pid) ? prev.filter(x => x !== pid) : prev.length < roundSize ? [...prev, pid] : prev);
   };
 
-  const canSelect = isProposalPhase && game.proposal_ready && isLeader && !isSpeaking;
-  const canAssassinate = isAssassination && game.your_role === "Assassin";
-  const mid = Math.ceil(game.players.length / 2);
-  const leftPlayers = game.players.slice(0, mid);
-  const rightPlayers = game.players.slice(mid);
-
-  // Determine role/alignment visibility per player
-  const getPlayerVisibleRole = (uid: string): { align?: Alignment; role?: RoleName; isGood: boolean; isEvil: boolean } => {
-    if (isGameOver && game.all_roles[uid]) {
-      const role = game.all_roles[uid] as RoleName;
-      return { align: (["Merlin","Percival","LoyalServant"].includes(role) ? "Good" : "Evil") as Alignment, role, isGood: ["Merlin","Percival","LoyalServant"].includes(role), isEvil: !["Merlin","Percival","LoyalServant"].includes(role) };
-    }
-    if (isAssassination && game.assassination_visibility[uid]) {
-      const v = game.assassination_visibility[uid];
-      return { align: v.alignment, role: v.role as RoleName | undefined, isGood: v.alignment === "Good", isEvil: v.alignment === "Evil" };
-    }
-    return { isGood: false, isEvil: false };
-  };
-
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-[#0a0f1a] via-[#0f172b] to-[#1a1040]">
-      <div className="absolute inset-0 pointer-events-none opacity-[0.02]"
-        style={{ backgroundImage: "radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
-
-      {/* Header */}
-      <div className="relative shrink-0 bg-white/[0.02] border-b border-white/[0.05] backdrop-blur-sm">
-        <div className="px-3 sm:px-4 py-2">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="text-white/80 text-sm font-bold tracking-wide shrink-0">🔱 阿瓦隆</span>
-              <PhaseStepper phase={game.phase} round={game.round} />
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <div className="flex items-center gap-1">
-                {game.mission_results.map((r, i) => (
-                  <button key={i} onClick={() => setShowHistory(true)} title="查看轮次历史"
-                    className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[9px] font-bold border-2 transition-all hover:scale-115 ${
-                      r === null ? "border-white/[0.08] bg-white/[0.02] text-white/15" :
-                      r ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-500/10" :
-                      "border-red-500/60 bg-red-500/10 text-red-400 shadow-lg shadow-red-500/10"
-                    }`}>
-                    {r === null ? (i + 1) : r ? "✓" : "✗"}
-                  </button>
-                ))}
-              </div>
-              <span className="text-white/15 text-xs">👑 {leader?.username ?? "—"}</span>
-              {game.consecutive_veto > 0 && (
-                <span className="text-red-400/50 text-[10px] font-medium bg-red-500/5 px-2 py-0.5 rounded-full">否决×{game.consecutive_veto}</span>
-              )}
-            </div>
-          </div>
-        </div>
+    <div className="w-full h-full flex flex-col overflow-hidden bg-gradient-to-b from-[#0a0a12] via-[#0d1117] to-[#0f0f1a]">
+      {/* Ambient background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(80vw,80vh)] h-[min(80vw,80vh)] rounded-full opacity-[0.03]" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.5), transparent 70%)' }} />
+        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: "radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 1px, transparent 1px)", backgroundSize: "64px 64px" }} />
       </div>
 
-      {err && (
-        <div className="relative shrink-0 bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex items-center justify-between animate-fade-in-up">
-          <span className="text-red-400 text-xs">{err}</span>
-          <button onClick={() => setErr(null)} className="text-red-400/60 hover:text-red-400 text-sm ml-3 shrink-0">✕</button>
-        </div>
-      )}
-
-      {/* Role Reveal Card */}
-      {showRoleCard && game.your_role && !isGameOver && (
-        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center animate-fade-in-up" onClick={() => setShowRoleCard(false)}>
-          <div className={`bg-[#0f172a]/90 backdrop-blur-xl border-2 rounded-3xl p-8 text-center max-w-xs mx-4 shadow-2xl animate-scale-in ${
-            game.your_alignment === "Good" ? "border-blue-500/30 shadow-blue-500/10" : "border-red-500/30 shadow-red-500/10"
-          }`} onClick={e => e.stopPropagation()}>
-            <div className={`w-24 h-24 mx-auto mb-4 rounded-full p-1 ${
-              game.your_alignment === "Good" ? "bg-gradient-to-br from-blue-500/20 to-blue-600/10 ring-2 ring-blue-500/40" : "bg-gradient-to-br from-red-500/20 to-red-600/10 ring-2 ring-red-500/40"
-            }`}>
-              <RoleAvatar role={game.your_role} size={88} showRing={false} className="rounded-full" />
+      {/* Top Status Bar */}
+      <div className="relative shrink-0 z-10">
+        <div className="px-3 sm:px-5 py-2 sm:py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-white/70 text-xs sm:text-sm font-bold tracking-wider">🔱 阿瓦隆</span>
+            <div className="hidden sm:block"><PhaseStepper phase={game.phase} round={game.round} /></div>
+            <span className="text-white/15 text-[10px] sm:text-xs">第 {game.round} 轮</span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1">
+              {game.mission_results.map((r, i) => (
+                <button key={i} onClick={() => setShowHistory(true)}
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[8px] sm:text-[9px] font-bold transition-all ${
+                    r === null ? "bg-white/[0.04] text-white/15 border border-white/[0.06]" :
+                    r ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10" :
+                    "bg-red-500/20 text-red-400 border border-red-500/30 shadow-sm shadow-red-500/10"
+                  }`}>
+                  {r === null ? (i + 1) : r ? "✓" : "✗"}
+                </button>
+              ))}
             </div>
-            <h2 className={`text-xl font-bold mb-1 ${game.your_alignment === "Good" ? "text-blue-300" : "text-red-300"}`}>{ROLE_NAMES[game.your_role]}</h2>
-            <p className={`text-sm font-medium mb-3 ${game.your_alignment === "Good" ? "text-blue-400/70" : "text-red-400/70"}`}>
+            <span className="text-white/25 text-[10px] sm:text-xs">👑 {leader?.username ?? "—"}</span>
+            {game.consecutive_veto > 0 && (
+              <span className="text-red-400/50 text-[9px] bg-red-500/10 px-1.5 py-0.5 rounded-full">否决×{game.consecutive_veto}</span>
+            )}
+          </div>
+        </div>
+        {err && (
+          <div className="mx-3 sm:mx-5 mb-1 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] sm:text-xs flex items-center justify-between">
+            <span>{err}</span>
+            <button onClick={() => setErr(null)} className="text-red-400/60 hover:text-red-400 ml-2">✕</button>
+          </div>
+        )}
+      </div>
+
+      {/* Role Reveal Overlay */}
+      {showRoleCard && game.your_role && !isGameOver && (
+        <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center" onClick={() => setShowRoleCard(false)}>
+          <div className={`p-6 sm:p-8 rounded-3xl text-center max-w-[280px] sm:max-w-xs mx-4 shadow-2xl animate-scale-in ${
+            game.your_alignment === "Good"
+              ? "bg-gradient-to-b from-blue-950/95 to-blue-900/90 border border-blue-500/20"
+              : "bg-gradient-to-b from-red-950/95 to-red-900/90 border border-red-500/20"
+          }`} onClick={e => e.stopPropagation()}>
+            <div className={`w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${
+              game.your_alignment === "Good" ? "bg-blue-500/10 ring-2 ring-blue-400/30" : "bg-red-500/10 ring-2 ring-red-400/30"
+            }`}>
+              <RoleAvatar role={game.your_role} size={72} showRing={false} className="rounded-full" />
+            </div>
+            <h2 className={`text-xl sm:text-2xl font-black mb-1 ${game.your_alignment === "Good" ? "text-blue-200" : "text-red-200"}`}>
+              {ROLE_NAMES[game.your_role]}
+            </h2>
+            <p className={`text-xs sm:text-sm mb-4 ${game.your_alignment === "Good" ? "text-blue-400/60" : "text-red-400/60"}`}>
               {game.your_alignment === "Good" ? "🛡️ 好人阵营" : "💀 坏人阵营"}
             </p>
             <button onClick={() => setShowRoleCard(false)}
-              className={`mt-4 px-8 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-105 ${game.your_alignment === "Good" ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-red-600 hover:bg-red-500 text-white"}`}>确认身份</button>
+              className={`px-8 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 ${
+                game.your_alignment === "Good" ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-red-600 hover:bg-red-500 text-white"
+              }`}>确认身份</button>
           </div>
         </div>
       )}
 
-      {/* Main Game Area - Three Column Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-2 sm:gap-3 p-2 sm:p-4 min-h-0">
-        {/* Player Rows - horizontal on mobile, vertical columns on desktop */}
-        <div className="flex lg:flex-col justify-evenly gap-1.5 lg:w-1/4 lg:min-h-0 shrink-0">
-          {leftPlayers.map((p, idx) => (
-            <PlayerCard key={p.user_id} {...{ p, idx, game, userId, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, getPlayerVisibleRole }} />
-          ))}
-        </div>
-
-        {/* Center */}
-        <div className="flex flex-col justify-center flex-1 min-w-0 min-h-0 lg:max-w-xl mx-auto w-full overflow-auto">
-          {isSpeaking && (
-            <SpeakingPanel
-              queue={game.speaking_queue}
-              currentSpeaker={game.current_speaker}
-              remaining={game.speaking_remaining}
-              isYourTurn={game.is_your_turn}
-              players={game.players.map(p => ({ user_id: p.user_id, username: p.username, avatar: p.avatar }))}
-              onEndSpeaking={() => apiCall("end-speaking")}
-              allRoles={game.all_roles as Record<string, RoleName>}
-              showRoles={isGameOver}
-              micActive={micActive}
-              muted={muted}
-              onToggleMic={onToggleMic}
-              onStartMic={onStartMic}
-            />
-          )}
-          <PhaseActions {...{ game, isLeader, selectedTeam, roundSize, inTeam, submitting, apiCall, onBackToRoom, setShowHistory, roomId }} />
-        </div>
-
-        {/* Player Rows - horizontal on mobile, vertical columns on desktop */}
-        <div className="flex lg:flex-col justify-evenly gap-1.5 lg:w-1/4 lg:min-h-0 shrink-0">
-          {rightPlayers.map((p, idx) => (
-            <PlayerCard key={p.user_id} {...{ p, idx, game, userId, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, getPlayerVisibleRole }} />
-          ))}
-        </div>
+      {/* Main Game Area - Circular Table Layout */}
+      <div className="relative flex-1 min-h-0 z-10">
+        <RoundTable
+          players={game.players}
+          userId={userId}
+          game={game}
+          selectedTeam={selectedTeam}
+          canSelect={canSelect}
+          canAssassinate={canAssassinate}
+          submitting={submitting}
+          togglePlayer={togglePlayer}
+          apiCall={apiCall}
+          isGameOver={isGameOver}
+          isAssassination={isAssassination}
+        />
       </div>
+
+      {/* Bottom Action Panel */}
+      {!isGameOver && (
+        <div className="relative shrink-0 z-10 px-3 sm:px-5 pb-2 sm:pb-3">
+          <ActionPanel
+            game={game} isLeader={isLeader} inTeam={inTeam}
+            selectedTeam={selectedTeam} roundSize={roundSize} submitting={submitting}
+            apiCall={apiCall} micActive={micActive} muted={muted}
+            onToggleMic={onToggleMic} onStartMic={onStartMic}
+            isSpeaking={isSpeaking} setShowHistory={setShowHistory}
+          />
+        </div>
+      )}
+
+      {/* Game End Overlay */}
+      {isGameOver && (
+        <GameEndOverlay game={game} onBackToRoom={onBackToRoom} setShowHistory={setShowHistory} roomId={roomId} />
+      )}
 
       {showHistory && <MissionHistory game={game} players={game.players} onClose={() => setShowHistory(false)} />}
       {showResultToast && toastData && (
@@ -223,256 +207,368 @@ export default function AvalonGame({ roomId, userId, onBackToRoom, micActive, mu
   );
 }
 
-function PlayerCard({ p, idx, game, userId, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, getPlayerVisibleRole }: {
-  p: PlayerGameView["players"][0]; idx: number; game: PlayerGameView; userId: string;
-  selectedTeam: string[]; canSelect: boolean; canAssassinate: boolean;
-  submitting: boolean; togglePlayer: (pid: string) => void;
+/* ====== Circular Table Component ====== */
+function RoundTable({ players, userId, game, selectedTeam, canSelect, canAssassinate, submitting, togglePlayer, apiCall, isGameOver, isAssassination }: {
+  players: PlayerGameView["players"]; userId: string; game: PlayerGameView;
+  selectedTeam: string[]; canSelect: boolean; canAssassinate: boolean; submitting: boolean;
+  togglePlayer: (pid: string) => void;
   apiCall: (path: string, body?: Record<string, unknown>) => void;
-  getPlayerVisibleRole: (uid: string) => { align?: Alignment; role?: RoleName; isGood: boolean; isEvil: boolean };
+  isGameOver: boolean; isAssassination: boolean;
 }) {
-  const picked = selectedTeam.includes(p.user_id);
-  const onMission = game.mission_team.includes(p.user_id);
-  const isGameOver = game.phase === "End";
-  const isAssassination = game.phase === "Assassination";
-  const vis = (isGameOver || isAssassination) ? getPlayerVisibleRole(p.user_id) : { isGood: false, isEvil: false };
-  const roleBadge = vis.role ? ROLE_NAMES[vis.role] : null;
-  const isSpeaker = game.speaking_phase && game.current_speaker === p.user_id;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 400, h: 400 });
+
+  useEffect(() => {
+    const update = () => {
+      if (containerRef.current) {
+        const r = containerRef.current.getBoundingClientRect();
+        setDims({ w: r.width, h: r.height });
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const n = players.length;
+  const cx = dims.w / 2;
+  const cy = dims.h / 2;
+  const radius = Math.min(dims.w, dims.h) * 0.38;
+
+  const phaseLabel = (() => {
+    const labels: Record<string, string> = {
+      RoleReveal: "身份确认", Proposal: "队长选人", Discussion: "讨论阶段",
+      Vote: "投票表决", Mission: "任务执行", Result: "结果揭晓",
+      Assassination: "刺杀阶段", End: "游戏结束"
+    };
+    return labels[game.phase] ?? game.phase;
+  })();
 
   return (
-    <button key={p.user_id} disabled={(!canSelect && !canAssassinate) || submitting}
-      style={{ animationDelay: `${idx * 50}ms` }}
-      onClick={() => { if (canSelect) togglePlayer(p.user_id); if (canAssassinate) apiCall("assassinate", { target: p.user_id }); }}
-      className={`animate-fade-in-up relative p-1.5 sm:p-2 lg:p-2.5 rounded-xl border transition-all duration-300 text-left w-full backdrop-blur-sm flex-shrink-0 lg:flex-shrink ${
-        isSpeaker ? "bg-amber-500/[0.08] border-amber-400/50 shadow-lg shadow-amber-500/10 ring-2 ring-amber-400/30 animate-pulse-glow-gold" :
-        onMission ? "bg-blue-500/[0.08] border-blue-500/30 shadow-lg shadow-blue-500/5" :
-        picked ? "bg-purple-500/[0.08] border-purple-500/40 shadow-lg shadow-purple-500/10 ring-1 ring-purple-500/30" :
-        !p.is_connected ? "bg-white/[0.02] border-white/[0.04] opacity-60" :
-        vis.isGood ? "bg-blue-500/[0.06] border-blue-400/20 ring-1 ring-blue-400/15" :
-        vis.isEvil ? "bg-red-500/[0.06] border-red-400/20 ring-1 ring-red-400/15" :
-        "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12]"
-      }`}>
-      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-2.5">
-        <RoleAvatar
-          role={vis.role ?? (p.user_id === userId ? game.your_role : undefined)}
-          alignment={vis.align}
-          size={36}
-          isLeader={p.is_leader}
-          isOnline={p.is_connected}
-          isSelf={p.user_id === userId}
-          isPicked={picked}
-          showRing={!!vis.align}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[11px] sm:text-xs font-semibold text-white truncate">{p.username}</span>
-            {p.is_ai_controlled && <span className="text-[8px] px-1 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium">AI</span>}
-            {!p.is_connected && <span className="text-[8px] px-1 py-0.5 rounded-full bg-red-500/10 text-red-400 font-medium">离线</span>}
+    <div ref={containerRef} className="w-full h-full relative">
+      {/* Central Table */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: `${Math.min(dims.w, dims.h) * 0.3}px`,
+          height: `${Math.min(dims.w, dims.h) * 0.3}px`,
+        }}>
+        <div className="w-full h-full rounded-full flex flex-col items-center justify-center"
+          style={{
+            background: 'radial-gradient(circle, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%)',
+            border: '1.5px solid rgba(139,92,246,0.2)',
+            boxShadow: '0 0 60px rgba(139,92,246,0.08), inset 0 0 40px rgba(0,0,0,0.3)',
+          }}>
+          <span className="text-white/10 text-[10px] sm:text-xs font-mono uppercase tracking-[0.2em]">{phaseLabel}</span>
+          <div className="text-white/50 text-2xl sm:text-3xl mt-1">
+            {game.phase === "Proposal" ? "👑" : game.phase === "Vote" ? "🗳️" : game.phase === "Mission" ? "⚔️" :
+             game.phase === "Result" ? (game.mission_results.filter(r => r !== null).pop() ? "✅" : "❌") :
+             game.phase === "Assassination" ? "🔪" : "🛡️"}
           </div>
-          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            {p.known_evil && !isAssassination && !isGameOver && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-red-500/15 text-red-400 font-semibold">邪恶</span>
-            )}
-            {p.known_role && !isAssassination && !isGameOver && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-semibold">{p.known_role === "Merlin" || p.known_role === "Morgana" ? "梅林/莫甘娜" : ROLE_NAMES[p.known_role as RoleName]}</span>
-            )}
-            {vis.isGood && !roleBadge && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-400/20">好人阵营</span>
-            )}
-            {vis.isEvil && roleBadge && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-red-500/20 text-red-400 font-semibold border border-red-400/20">{roleBadge}</span>
-            )}
-            {vis.isEvil && !roleBadge && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-red-500/20 text-red-400 font-semibold border border-red-400/20">坏人阵营</span>
-            )}
-            {isSpeaker && (
-              <span className="text-[8px] px-1 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30 animate-pulse-glow-gold">🎤 发言中</span>
-            )}
-            {isGameOver && vis.role && (
-              <span className={`text-[8px] px-1 py-0.5 rounded-full font-semibold ${vis.isGood ? "bg-blue-500/10 text-blue-400 border border-blue-400/15" : "bg-red-500/10 text-red-400 border border-red-400/15"}`}>
-                {ROLE_NAMES[vis.role]}
-              </span>
-            )}
-          </div>
+          <span className="text-white/20 text-[10px] sm:text-xs mt-1">第 {game.round}/5 轮</span>
         </div>
       </div>
-      {picked && !isGameOver && !isAssassination && (
-        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-[9px] text-white font-bold shadow-lg shadow-purple-500/30">✓</div>
-      )}
-      {onMission && !isGameOver && !isAssassination && (
-        <div className="absolute top-1 right-1 text-[8px] px-1 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">任务中</div>
-      )}
-    </button>
+
+      {/* Players around the circle */}
+      {players.map((p, i) => {
+        const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        const picked = selectedTeam.includes(p.user_id);
+        const onMission = game.mission_team.includes(p.user_id);
+        const isSpeaker = game.speaking_phase && game.current_speaker === p.user_id;
+        const isSelf = p.user_id === userId;
+        const isLeader = p.is_leader;
+
+        const vis = (isGameOver || isAssassination) ? (() => {
+          if (isGameOver && game.all_roles[p.user_id]) {
+            const role = game.all_roles[p.user_id] as RoleName;
+            return { align: (["Merlin","Percival","LoyalServant"].includes(role) ? "Good" : "Evil") as Alignment, role, isGood: ["Merlin","Percival","LoyalServant"].includes(role), isEvil: !["Merlin","Percival","LoyalServant"].includes(role) };
+          }
+          if (isAssassination && game.assassination_visibility[p.user_id]) {
+            const v = game.assassination_visibility[p.user_id];
+            return { align: v.alignment, role: v.role as RoleName | undefined, isGood: v.alignment === "Good", isEvil: v.alignment === "Evil" };
+          }
+          return { isGood: false, isEvil: false, align: undefined as Alignment | undefined, role: undefined as RoleName | undefined };
+        })() : { isGood: false, isEvil: false, align: undefined as Alignment | undefined, role: undefined as RoleName | undefined };
+
+        return (
+          <button key={p.user_id}
+            disabled={(!canSelect && !canAssassinate) || submitting}
+            onClick={() => { if (canSelect) togglePlayer(p.user_id); if (canAssassinate) apiCall("assassinate", { target: p.user_id }); }}
+            style={{
+              position: "absolute",
+              left: `${x}px`,
+              top: `${y}px`,
+              transform: "translate(-50%, -50%)",
+              zIndex: isSpeaker ? 20 : 10,
+            }}
+            className={`group flex flex-col items-center gap-1 transition-all duration-300 ${
+              !p.is_connected ? "opacity-40" : ""
+            }`}>
+            {/* Avatar circle */}
+            <div className={`relative w-[44px] h-[44px] sm:w-[52px] sm:h-[52px] rounded-full flex items-center justify-center transition-all duration-300 ${
+              isSpeaker ? "ring-[3px] ring-amber-400/60 scale-110 shadow-lg shadow-amber-500/30" :
+              picked && canSelect ? "ring-[3px] ring-purple-400/60 scale-105 shadow-lg shadow-purple-500/20" :
+              onMission ? "ring-[3px] ring-blue-400/40 shadow-lg shadow-blue-500/15" :
+              vis.isGood ? "ring-1 ring-blue-400/30" :
+              vis.isEvil ? "ring-1 ring-red-400/30" :
+              "ring-1 ring-white/[0.08]"
+            } ${isSpeaker ? "animate-pulse-glow-gold" : ""}`}
+              style={{
+                background: isSpeaker ? 'rgba(251,191,36,0.1)' :
+                            picked ? 'rgba(147,51,234,0.1)' :
+                            onMission ? 'rgba(59,130,246,0.1)' :
+                            vis.isGood ? 'rgba(59,130,246,0.06)' :
+                            vis.isEvil ? 'rgba(239,68,68,0.06)' :
+                            'rgba(255,255,255,0.04)',
+              }}>
+              <RoleAvatar
+                role={vis.role ?? (isSelf ? game.your_role : undefined)}
+                alignment={vis.align}
+                size={isSpeaker ? 40 : 36}
+                showRing={false}
+                className="rounded-full"
+              />
+              {/* Leader crown */}
+              {isLeader && (
+                <div className="absolute -top-2 -right-1 text-[10px] sm:text-xs">👑</div>
+              )}
+              {/* Selection check */}
+              {picked && canSelect && (
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-purple-500 flex items-center justify-center text-[8px] text-white font-bold shadow-md">✓</div>
+              )}
+              {/* Speaking indicator */}
+              {isSpeaker && (
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[8px] px-1 rounded-full bg-amber-500 text-white font-bold animate-pulse">🎤</div>
+              )}
+            </div>
+            {/* Name */}
+            <span className={`text-[9px] sm:text-[10px] font-medium truncate max-w-[56px] text-center leading-tight ${
+              isSpeaker ? "text-amber-300" : isSelf ? "text-blue-300" : "text-white/60"
+            }`}>
+              {p.username}
+            </span>
+            {/* Status tags */}
+            <div className="flex gap-0.5 flex-wrap justify-center">
+              {p.is_ai_controlled && <span className="text-[7px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-400">AI</span>}
+              {!p.is_connected && <span className="text-[7px] px-1 py-0.5 rounded bg-red-500/10 text-red-400">离线</span>}
+              {p.known_evil && !isAssassination && !isGameOver && <span className="text-[7px] px-1 py-0.5 rounded bg-red-500/15 text-red-400">邪恶</span>}
+              {vis.role && (isGameOver || isAssassination) && (
+                <span className={`text-[7px] px-1 py-0.5 rounded ${vis.isGood ? "bg-blue-500/10 text-blue-400" : "bg-red-500/10 text-red-400"}`}>
+                  {ROLE_NAMES[vis.role]}
+                </span>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function PhaseActions({ game, isLeader, selectedTeam, roundSize, inTeam, submitting, apiCall, onBackToRoom, setShowHistory, roomId }: {
-  game: PlayerGameView; isLeader: boolean; selectedTeam: string[]; roundSize: number;
-  inTeam: boolean; submitting: boolean;
-  apiCall: (path: string, body?: Record<string, unknown>) => void;
-  onBackToRoom: () => void; setShowHistory: (v: boolean) => void; roomId: string;
+/* ====== Bottom Action Panel ====== */
+function ActionPanel({ game, isLeader, inTeam, selectedTeam, roundSize, submitting, apiCall, micActive, muted, onToggleMic, onStartMic, isSpeaking, setShowHistory }: {
+  game: PlayerGameView; isLeader: boolean; inTeam: boolean; selectedTeam: string[]; roundSize: number;
+  submitting: boolean; apiCall: (path: string, body?: Record<string, unknown>) => void;
+  micActive: boolean; muted: boolean; onToggleMic: () => void; onStartMic: () => void;
+  isSpeaking: boolean; setShowHistory: (v: boolean) => void;
 }) {
-  const isGameOver = game.phase === "End";
-  const goodWins = game.winner === "Good";
-  const isAssassination = game.phase === "Assassination";
+  const phase = game.phase;
 
   return (
-    <div className="animate-fade-in-up flex flex-col gap-3">
-      {/* Proposal Phase */}
-      {game.phase === "Proposal" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
-          {isLeader && game.proposal_ready && !game.speaking_phase ? (
-            <>
-              <h3 className="text-sm font-semibold text-white/80 mb-2">👑 选择 <span className="text-amber-400">{roundSize}</span> 名队员</h3>
-              <button onClick={() => apiCall("select-team", { team: selectedTeam })}
-                disabled={selectedTeam.length !== roundSize || submitting}
-                className={`px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 hover:scale-105 ${
-                  selectedTeam.length === roundSize ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-xl shadow-purple-500/25" : "bg-white/[0.05] text-white/20"
-                }`}>
-                {selectedTeam.length === roundSize ? "⚔ 确认队伍" : `还需 ${roundSize - selectedTeam.length} 人`}
-              </button>
-            </>
-          ) : (
-            <p className="text-white/25 text-sm py-1">{game.speaking_phase ? "队长正在发言..." : "等待队长选择队伍"}</p>
-          )}
-        </div>
+    <div className="flex flex-col gap-2">
+      {/* Speaking Panel */}
+      {isSpeaking && (
+        <SpeakingPanel
+          queue={game.speaking_queue}
+          currentSpeaker={game.current_speaker}
+          remaining={game.speaking_remaining}
+          isYourTurn={game.is_your_turn}
+          players={game.players.map(p => ({ user_id: p.user_id, username: p.username, avatar: p.avatar }))}
+          onEndSpeaking={() => apiCall("end-speaking")}
+          allRoles={game.all_roles as Record<string, RoleName>}
+          showRoles={false}
+          micActive={micActive}
+          muted={muted}
+          onToggleMic={onToggleMic}
+          onStartMic={onStartMic}
+        />
       )}
 
-      {/* Vote Phase */}
-      {game.phase === "Vote" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
-          <h3 className="text-xs font-semibold text-white/60 mb-2">🗳 投票表决</h3>
-          {game.is_your_turn ? (
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => apiCall("team-vote", { vote: "approve" })} disabled={submitting}
-                className="w-28 h-12 rounded-2xl bg-emerald-600/80 hover:bg-emerald-500 disabled:bg-white/[0.05] disabled:text-white/15 text-white text-sm font-bold transition-all duration-300 hover:scale-105 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1"><span>✓</span> 同意</button>
-              <button onClick={() => apiCall("team-vote", { vote: "reject" })} disabled={submitting}
-                className="w-28 h-12 rounded-2xl bg-red-600/80 hover:bg-red-500 disabled:bg-white/[0.05] disabled:text-white/15 text-white text-sm font-bold transition-all duration-300 hover:scale-105 shadow-lg shadow-red-500/20 flex items-center justify-center gap-1"><span>✗</span> 否决</button>
-            </div>
-          ) : (
-            <p className="text-white/20 text-xs py-1">等待投票...</p>
-          )}
-        </div>
-      )}
-
-      {/* Mission Phase */}
-      {game.phase === "Mission" && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-3 sm:p-3.5 backdrop-blur-sm text-center">
-          {inTeam ? (
-            <>
-              <h3 className="text-sm font-semibold text-white/80 mb-3">⚔ 你在任务队伍中</h3>
-              <div className="flex gap-3 justify-center">
-                <button onClick={() => apiCall("mission-vote", { vote: "success" })} disabled={submitting}
-                  className="w-32 h-12 rounded-2xl bg-emerald-600/80 hover:bg-emerald-500 disabled:bg-white/[0.05] disabled:text-white/15 text-white text-sm font-bold transition-all duration-300 hover:scale-105 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1"><span>✓</span> 成功</button>
-                <button onClick={() => apiCall("mission-vote", { vote: "fail" })} disabled={submitting}
-                  className="w-32 h-12 rounded-2xl bg-red-600/80 hover:bg-red-500 disabled:bg-white/[0.05] disabled:text-white/15 text-white text-sm font-bold transition-all duration-300 hover:scale-105 shadow-lg shadow-red-500/20 flex items-center justify-center gap-1"><span>✗</span> 失败</button>
-              </div>
-            </>
-          ) : (
-            <p className="text-white/20 text-xs py-2">任务进行中...</p>
-          )}
-        </div>
-      )}
-
-      {/* Result Phase */}
-      {game.phase === "Result" && (() => {
-        const lastResult = game.mission_results.filter(r => r !== null).pop();
-        return (
-          <div className={`rounded-2xl p-5 text-center backdrop-blur-sm animate-scale-in ${lastResult ? "bg-emerald-500/[0.06] border border-emerald-500/20" : "bg-red-500/[0.06] border border-red-500/20"}`}>
-            <span className="text-3xl block mb-2 animate-float">{lastResult ? "✅" : "❌"}</span>
-            <h3 className={`text-lg font-bold ${lastResult ? "text-emerald-300" : "text-red-300"}`}>{lastResult ? "任务成功！" : "任务失败！"}</h3>
-          </div>
-        );
-      })()}
-
-      {/* Assassination */}
-      {isAssassination && (
-        <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5 backdrop-blur-sm text-center animate-fade-in-up">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/10 ring-2 ring-red-500/20 flex items-center justify-center text-xl animate-float">🔪</div>
-          {game.your_role === "Assassin" ? (
-            <h3 className="text-sm font-bold text-red-400">你是刺客，点击上方玩家头像选择刺杀目标</h3>
-          ) : (
-            <p className="text-white/25 text-sm">刺客正在选择目标...</p>
-          )}
-        </div>
-      )}
-
-      {/* Game End - Split Winners / Losers */}
-      {isGameOver && (
-        <div onClick={async () => {
-          try { await api.post(`/rooms/${roomId}/avalon/confirm-settlement`, {}); } catch {}
-          onBackToRoom();
-        }}
-          className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5 backdrop-blur-sm animate-scale-in cursor-pointer">
-          {/* Winner Banner */}
-          <div className={`text-center mb-5 pb-4 border-b border-white/[0.06]`}>
-            <div className={`w-14 h-14 mx-auto mb-2 rounded-full flex items-center justify-center text-2xl ring-3 ${goodWins ? "bg-blue-500/10 ring-blue-500/20" : "bg-red-500/10 ring-red-500/20"}`}>
-              {goodWins ? "🎉" : "💀"}
-            </div>
-            <h2 className={`text-xl font-black ${goodWins ? "text-emerald-300" : "text-red-300"}`}>
-              {goodWins ? "好人阵营获胜！" : "坏人阵营获胜！"}
-            </h2>
-            {game.assassin_target && (() => {
-              const tname = game.players.find(p => p.user_id === game.assassin_target)?.username ?? "?";
-              const wasMerlin = game.all_roles[game.assassin_target] === "Merlin";
-              return (
-                <p className={`text-xs mt-1 font-medium ${wasMerlin ? "text-red-400" : "text-emerald-400"}`}>
-                  🔪 刺客刺杀了 <b>{tname}</b> {wasMerlin ? "(梅林!) → 坏人逆转" : "(未中)"}
-                </p>
-              );
-            })()}
-          </div>
-
-          {/* Winning Side */}
-          <div className="mb-3">
-            <p className="text-[11px] font-semibold text-emerald-400/80 uppercase tracking-wider mb-2">🏆 胜利方</p>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
-              {Object.entries(game.all_roles).filter(([_, r]) => {
-                const isGood = ["Merlin","Percival","LoyalServant"].includes(r);
-                return goodWins ? isGood : !isGood;
-              }).map(([uid, role]) => {
-                const p = game.players.find(pp => pp.user_id === uid);
-                const isGood = ["Merlin","Percival","LoyalServant"].includes(role);
-                return (
-                  <div key={uid} className={`rounded-xl p-2.5 text-center ${isGood ? "bg-blue-500/[0.04] border border-blue-500/10" : "bg-red-500/[0.04] border border-red-500/10"}`}>
-                    <RoleAvatar role={role as RoleName} alignment={isGood ? "Good" : "Evil"} size={36} className="mx-auto" />
-                    <div className="mt-1 text-[11px] font-semibold text-white truncate">{p?.username ?? uid}</div>
-                    <div className={`text-[9px] font-bold ${isGood ? "text-blue-400" : "text-red-400"}`}>{ROLE_NAMES[role as RoleName]}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Losing Side */}
+      {/* Phase-specific actions */}
+      <div className="flex items-center gap-3">
+        {/* Your role badge */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl shrink-0"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '0.67px solid rgba(255,255,255,0.06)' }}>
+          <RoleAvatar role={game.your_role ?? undefined} alignment={game.your_alignment ?? undefined} size={32} showRing={false} className="rounded-full" />
           <div>
-            <p className="text-[11px] font-semibold text-white/25 uppercase tracking-wider mb-2">💀 失败方</p>
-            <div className="grid gap-2 opacity-70" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
-              {Object.entries(game.all_roles).filter(([_, r]) => {
-                const isGood = ["Merlin","Percival","LoyalServant"].includes(r);
-                return goodWins ? !isGood : isGood;
-              }).map(([uid, role]) => {
-                const p = game.players.find(pp => pp.user_id === uid);
-                const isGood = ["Merlin","Percival","LoyalServant"].includes(role);
-                return (
-                  <div key={uid} className={`rounded-xl p-2.5 text-center ${isGood ? "bg-blue-500/[0.04] border border-blue-500/10" : "bg-red-500/[0.04] border border-red-500/10"}`}>
-                    <RoleAvatar role={role as RoleName} alignment={isGood ? "Good" : "Evil"} size={36} className="mx-auto" />
-                    <div className="mt-1 text-[11px] font-semibold text-white truncate">{p?.username ?? uid}</div>
-                    <div className={`text-[9px] font-bold ${isGood ? "text-blue-400" : "text-red-400"}`}>{ROLE_NAMES[role as RoleName]}</div>
-                  </div>
-                );
-              })}
+            <div className="text-white/80 text-[10px] sm:text-xs font-semibold">{ROLE_NAMES[game.your_role ?? "LoyalServant"]}</div>
+            <div className={`text-[9px] sm:text-[10px] ${game.your_alignment === "Good" ? "text-blue-400" : "text-red-400"}`}>
+              {game.your_alignment === "Good" ? "好人阵营" : "坏人阵营"}
             </div>
           </div>
+        </div>
 
-          {/* Confirm Button */}
-          {game.round_history.length > 0 && (
-            <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }} className="block mx-auto mt-4 text-xs text-blue-400/70 hover:text-blue-400 underline">
-              查看轮次历史 ({game.round_history.length}轮)
+        {/* Action buttons */}
+        <div className="flex-1 flex items-center gap-2 overflow-x-auto">
+          {/* Proposal */}
+          {phase === "Proposal" && isLeader && game.proposal_ready && !isSpeaking && (
+            <button onClick={() => apiCall("select-team", { team: selectedTeam })}
+              disabled={selectedTeam.length !== roundSize || submitting}
+              className={`flex-1 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                selectedTeam.length === roundSize
+                  ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-500/25 hover:scale-[1.02]"
+                  : "bg-white/[0.05] text-white/20"
+              }`}>
+              {selectedTeam.length === roundSize ? "⚔ 确认队伍" : `选择 ${roundSize} 名队员 (${selectedTeam.length}/${roundSize})`}
             </button>
           )}
-          <p className="mt-4 text-white/20 text-xs animate-pulse">点击任意位置回到房间</p>
+          {phase === "Proposal" && (!isLeader || !game.proposal_ready || isSpeaking) && (
+            <div className="flex-1 text-center text-white/20 text-xs sm:text-sm py-2">
+              {isSpeaking ? "队长发言中..." : "等待队长选择队伍..."}
+            </div>
+          )}
+
+          {/* Vote */}
+          {phase === "Vote" && game.is_your_turn && (
+            <div className="flex gap-2 flex-1">
+              <button onClick={() => apiCall("team-vote", { vote: "approve" })} disabled={submitting}
+                className="flex-1 py-2.5 sm:py-3 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 hover:scale-[1.02]">
+                ✓ 同意
+              </button>
+              <button onClick={() => apiCall("team-vote", { vote: "reject" })} disabled={submitting}
+                className="flex-1 py-2.5 sm:py-3 rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs sm:text-sm font-bold transition-all shadow-lg shadow-red-500/20 hover:scale-[1.02]">
+                ✗ 否决
+              </button>
+            </div>
+          )}
+          {phase === "Vote" && !game.is_your_turn && (
+            <span className="flex-1 text-center text-white/20 text-xs sm:text-sm">等待投票中...</span>
+          )}
+
+          {/* Mission */}
+          {phase === "Mission" && inTeam && (
+            <div className="flex gap-2 flex-1">
+              <button onClick={() => apiCall("mission-vote", { vote: "success" })} disabled={submitting}
+                className="flex-1 py-2.5 sm:py-3 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 hover:scale-[1.02]">
+                ✓ 任务成功
+              </button>
+              <button onClick={() => apiCall("mission-vote", { vote: "fail" })} disabled={submitting}
+                className="flex-1 py-2.5 sm:py-3 rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs sm:text-sm font-bold transition-all shadow-lg shadow-red-500/20 hover:scale-[1.02]">
+                ✗ 任务失败
+              </button>
+            </div>
+          )}
+          {phase === "Mission" && !inTeam && (
+            <span className="flex-1 text-center text-white/20 text-xs sm:text-sm">任务执行中...</span>
+          )}
+
+          {/* Result */}
+          {phase === "Result" && (
+            <span className="flex-1 text-center text-white/30 text-xs sm:text-sm">等待下一轮...</span>
+          )}
+
+          {/* Assassination */}
+          {phase === "Assassination" && (
+            <span className={`flex-1 text-center text-xs sm:text-sm ${game.your_role === "Assassin" ? "text-red-400 font-semibold" : "text-white/25"}`}>
+              {game.your_role === "Assassin" ? "点击场上玩家头像选择刺杀目标" : "刺客正在选择目标..."}
+            </span>
+          )}
+
+          {/* Other phases */}
+          {phase === "Discussion" && <span className="flex-1 text-center text-white/20 text-xs sm:text-sm">讨论阶段，等待进入投票</span>}
+          {phase === "RoleReveal" && <span className="flex-1 text-center text-white/20 text-xs sm:text-sm">查看你的身份...</span>}
         </div>
-      )}
+
+        {/* Right-side buttons */}
+        <button onClick={() => setShowHistory(true)}
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 transition-colors text-sm shrink-0"
+          style={{ background: 'rgba(255,255,255,0.04)' }} title="轮次历史">
+          📋
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ====== Game End Overlay ====== */
+function GameEndOverlay({ game, onBackToRoom, setShowHistory, roomId }: {
+  game: PlayerGameView; onBackToRoom: () => void; setShowHistory: (v: boolean) => void; roomId: string;
+}) {
+  const goodWins = game.winner === "Good";
+  const handleLeave = async () => {
+    try { await api.post(`/rooms/${roomId}/avalon/confirm-settlement`, {}); } catch {}
+    onBackToRoom();
+  };
+  return (
+    <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={handleLeave}>
+      <div onClick={(e) => { e.stopPropagation(); handleLeave(); }}
+        className="w-full max-w-md rounded-3xl p-6 sm:p-8 text-center cursor-pointer animate-scale-in"
+        style={{
+          background: goodWins ? 'linear-gradient(180deg, rgba(16,185,129,0.15), rgba(6,78,59,0.5))' : 'linear-gradient(180deg, rgba(239,68,68,0.15), rgba(127,29,29,0.5))',
+          border: `1px solid ${goodWins ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+        }}>
+        <div className={`w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 rounded-full flex items-center justify-center text-3xl sm:text-4xl ${
+          goodWins ? "bg-emerald-500/10 ring-2 ring-emerald-500/20" : "bg-red-500/10 ring-2 ring-red-500/20"
+        }`}>
+          {goodWins ? "🎉" : "💀"}
+        </div>
+        <h2 className={`text-xl sm:text-2xl font-black mb-2 ${goodWins ? "text-emerald-300" : "text-red-300"}`}>
+          {goodWins ? "好人阵营获胜！" : "坏人阵营获胜！"}
+        </h2>
+        {game.assassin_target && (() => {
+          const tname = game.players.find(p => p.user_id === game.assassin_target)?.username ?? "?";
+          const wasMerlin = game.all_roles[game.assassin_target] === "Merlin";
+          return (
+            <p className={`text-xs sm:text-sm mt-1 font-medium ${wasMerlin ? "text-red-400" : "text-emerald-400"}`}>
+              🔪 刺客刺杀了 <b>{tname}</b> {wasMerlin ? "(梅林!) → 坏人逆转" : "(未中)"}
+            </p>
+          );
+        })()}
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-5 text-left">
+          <div>
+            <p className="text-[10px] sm:text-xs text-emerald-400/70 font-semibold mb-2">🏆 胜利方</p>
+            {Object.entries(game.all_roles).filter(([_, r]) => {
+              const isGood = ["Merlin","Percival","LoyalServant"].includes(r);
+              return goodWins ? isGood : !isGood;
+            }).map(([uid, role]) => {
+              const p = game.players.find(pp => pp.user_id === uid);
+              return (
+                <div key={uid} className="flex items-center gap-2 py-1">
+                  <RoleAvatar role={role as RoleName} alignment={(["Merlin","Percival","LoyalServant"].includes(role) ? "Good" : "Evil") as Alignment} size={24} className="rounded-full" />
+                  <span className="text-white/80 text-[10px] sm:text-xs truncate">{p?.username}</span>
+                  <span className="text-white/30 text-[8px] sm:text-[9px]">{ROLE_NAMES[role as RoleName]}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-xs text-white/25 font-semibold mb-2">💀 失败方</p>
+            {Object.entries(game.all_roles).filter(([_, r]) => {
+              const isGood = ["Merlin","Percival","LoyalServant"].includes(r);
+              return goodWins ? !isGood : isGood;
+            }).map(([uid, role]) => {
+              const p = game.players.find(pp => pp.user_id === uid);
+              return (
+                <div key={uid} className="flex items-center gap-2 py-1 opacity-60">
+                  <RoleAvatar role={role as RoleName} alignment={(["Merlin","Percival","LoyalServant"].includes(role) ? "Good" : "Evil") as Alignment} size={24} className="rounded-full" />
+                  <span className="text-white/60 text-[10px] sm:text-xs truncate">{p?.username}</span>
+                  <span className="text-white/20 text-[8px] sm:text-[9px]">{ROLE_NAMES[role as RoleName]}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {game.round_history.length > 0 && (
+          <button onClick={(e) => { e.stopPropagation(); setShowHistory(true); }}
+            className="mt-4 text-xs text-blue-400/70 hover:text-blue-400 underline">
+            查看轮次历史 ({game.round_history.length}轮)
+          </button>
+        )}
+        <p className="mt-3 text-white/15 text-[10px] sm:text-xs">点击任意位置回到房间</p>
+      </div>
     </div>
   );
 }

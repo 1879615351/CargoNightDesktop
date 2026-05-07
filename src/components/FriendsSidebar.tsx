@@ -45,7 +45,7 @@ export default function FriendsSidebar() {
           </div>
         </div>
 
-        <div className="p-3 space-y-1 max-h-[360px] overflow-auto">
+        <div className="p-3 space-y-1 max-h-[40vh] lg:max-h-[50vh] overflow-auto">
           {loading && <div className="text-white/15 text-xs text-center py-6">加载中...</div>}
 
           {/* Pending requests */}

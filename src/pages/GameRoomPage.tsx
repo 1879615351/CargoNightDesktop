@@ -20,6 +20,7 @@ export default function GameRoomPage() {
   const { mode, muted, micActive, checkSupport, startMic, stopMic, toggleMute } = useMediaDevice();
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showRoleConfig, setShowRoleConfig] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const handleWsChat = useCallback((data: Record<string, unknown>) => {
     if (data.message) addMessage(data.message as import("../types").ChatMessage);
@@ -31,7 +32,7 @@ export default function GameRoomPage() {
   const { send: wsSend } = useWebSocket(roomId, { onChat: handleWsChat, onRoomEvent: handleWsRoomEvent });
   const { closeAll, setLocalStream } = useWebRTC(roomId, user?.id ?? "", mode, wsSend, undefined);
 
-  useEffect(() => { checkSupport().then((m) => setVoiceSupported(m !== "none")); }, []);
+  useEffect(() => { checkSupport().then((m) => setVoiceSupported(m !== "none")).catch(() => setVoiceSupported(false)); }, []);
   useEffect(() => {
     if (!roomId || joined) return;
     setJoined(true);
@@ -114,11 +115,23 @@ export default function GameRoomPage() {
         </div>
       </div>
 
+      {/* Mobile toggle buttons */}
+      <div className="md:hidden flex gap-2 px-4 pt-3 shrink-0">
+        <button onClick={() => setShowChat(false)}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${!showChat ? 'bg-white/10 text-white' : 'bg-white/[0.03] text-white/35'}`}>
+          👥 玩家
+        </button>
+        <button onClick={() => setShowChat(true)}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${showChat ? 'bg-white/10 text-white' : 'bg-white/[0.03] text-white/35'}`}>
+          💬 聊天
+        </button>
+      </div>
+
       {/* Main Body */}
       <div className="w-full flex-1 min-h-0 px-4 sm:px-6 py-3">
-        <div className="w-full h-full grid gap-4" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)" }}>
+        <div className="w-full h-full grid gap-4 grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
           {/* Player List */}
-          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col min-h-0 overflow-auto">
+          <div className={`bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col min-h-0 overflow-auto ${showChat ? 'hidden md:flex' : 'flex'}`}>
             <div className="flex items-center justify-between mb-3 shrink-0">
               <h3 className="text-sm font-semibold text-white/80">玩家列表</h3>
               <span className="text-xs text-white/30">{room.players.length}/{room.max_players}</span>
@@ -170,7 +183,7 @@ export default function GameRoomPage() {
           </div>
 
           {/* Chat */}
-          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col min-h-0">
+          <div className={`bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col min-h-0 ${showChat ? 'flex' : 'hidden md:flex'}`}>
             <ChatArea messages={messages} onSend={(c) => roomId && sendMessage(roomId, c)} currentPlayerId={user.id} />
           </div>
         </div>
